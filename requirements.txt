@@ -1,0 +1,37 @@
+Defficient.xlsx
+Columns:
+
+Arginine (R)
+Glutamic acid (E)
+Lysine (K)
+Leucine (L)
+Methionine (M)
+Class labels
+Dominant acid.xlsx
+Columns:
+
+Asparagine (N)
+Isoleucine (I)
+Phenylalanine (F)
+Threonine (T)
+Tyrosine (Y)
+Class labels
+To develop machine learning models like CatBoost, TabNet, and RandomForest for these datasets, follow these steps:
+
+Step-by-Step Process for Model Development
+1. Data Preprocessing
+Handle missing values.
+Combine the datasets if necessary.
+Encode categorical variables (class labels).
+Split the data into training and testing sets.
+2. Feature Engineering
+Scale the features if required.
+Perform any additional feature transformations if necessary.
+3. Model Training
+Train models using CatBoost, TabNet, and RandomForest.
+Tune hyperparameters for each model.
+4. Model Evaluation
+Evaluate model performance using metrics like accuracy, precision, recall, F1-score.
+Compare the models to select the best one.
+5. Model Deployment (Optional)
+Save the best model for future predictions.
