@@ -16,7 +16,7 @@ import lime.lime_tabular
 model = joblib.load('MAAPRED.pkl')
 
 # Load the label encoder
-label_mapping = {'Alpha': 0, 'Beta': 1, 'Delta': 2, 'Gamma': 3, 'HCoV-HKU1': 4, 'MERS-CoV': 5, 'Normal': 6, 'Omicron': 7}
+label_mapping = {'Alpha': 0, 'Beta': 1, 'Delta': 2, 'Gamma': 3, 'HCoV-HKU1': 4, 'MERS-CoV': 5, 'Normal': 6, 'omicron': 7}
 label_encoder = LabelEncoder()
 label_encoder.classes_ = np.array(list(label_mapping.keys()))
 
