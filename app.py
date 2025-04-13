@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.preprocessing import LabelEncoder, RobustScaler
 from sklearn.metrics import accuracy_score, precision_score, recall_score, confusion_matrix
-from sklearn.feature_selection import SelectKBest, mutual_info_classif
+from sklearn.feature_selection import SelectKBest, mutual_info_classif, f_classif, chi2
 from sklearn.model_selection import train_test_split
 from catboost import CatBoostClassifier
 import lime
@@ -48,15 +48,38 @@ if uploaded_file:
         # Feature selection
         def select_features(X, y, method, k=10):
             if method == 'ANOVA':
-                from sklearn.feature_selection import f_classif
                 selector = SelectKBest(score_func=f_classif, k=k)
             elif method == 'Mutual Information':
                 selector = SelectKBest(score_func=mutual_info_classif, k=k)
             elif method == 'Information Gain':
-                from sklearn.feature_selection import mutual_info_classif
-                selector = SelectKBest(score_func=mutual_info_classif, k=k)
+                # Calculate entropy reduction for each feature
+                base_entropy = -np.sum([(y == c).mean() * np.log2((y == c).mean() + 1e-10) for c in np.unique(y)])
+                scores = []
+                for col in X.columns:
+                    # Discretize continuous features into 10 bins
+                    bins = np.linspace(X[col].min(), X[col].max(), 11)
+                    binned = np.digitize(X[col], bins)
+                    # Calculate conditional entropy
+                    cond_entropy = 0
+                    for bin_val in np.unique(binned):
+                        p_bin = (binned == bin_val).mean()
+                        bin_dist = y[binned == bin_val]
+                        if len(bin_dist) > 0:
+                            p_classes = [(bin_dist == c).mean() for c in np.unique(y)]
+                            p_classes = [p for p in p_classes if p > 0]
+                            cond_entropy += p_bin * -np.sum([p * np.log2(p + 1e-10) for p in p_classes])
+                    scores.append(base_entropy - cond_entropy)
+                
+                # Create a custom selector using information gain scores
+                scores = np.array(scores)
+                selected_features = np.argsort(scores)[-k:]
+                selector = type('CustomSelector', (), {
+                    'get_support': lambda self, indices=False: selected_features if indices else np.isin(range(len(scores)), selected_features),
+                    'fit_transform': lambda self, X, y=None: X.iloc[:, selected_features],
+                    'scores_': scores
+                })()
+                return X.iloc[:, selected_features], selected_features, X.columns[selected_features], selector
             elif method == 'Chi-Square':
-                from sklearn.feature_selection import chi2
                 # Ensure data is non-negative for chi-square test
                 X_non_neg = X - X.min()
                 selector = SelectKBest(score_func=chi2, k=k)
@@ -88,23 +111,34 @@ if uploaded_file:
         
         # Display selected features and their scores
         st.write("### Selected Features")
-        if method != "Chi-Square":
-            scores = pd.DataFrame({
-                'Feature': feature_names,
-                'Score': selector.scores_[selected_features]
-            }).sort_values('Score', ascending=False)
-        else:
-            scores = pd.DataFrame({
-                'Feature': feature_names,
-                'Score': selector.scores_[selected_features]
-            }).sort_values('Score', ascending=False)
+        scores = pd.DataFrame({
+            'Feature': feature_names,
+            'Score': selector.scores_[selected_features] if hasattr(selector, 'scores_') else np.zeros(len(selected_features))
+        }).sort_values('Score', ascending=False)
         st.dataframe(scores)
         
-        # Split data
-        X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.2, random_state=42)
+        # Split data with stratification
+        X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.2, random_state=42, stratify=y)
+        
+        # Optimize model parameters
+        model_params = {
+            'iterations': 1000,
+            'learning_rate': 0.1,
+            'depth': 6,
+            'l2_leaf_reg': 3,
+            'bootstrap_type': 'Bernoulli',
+            'subsample': 0.8,
+            'scale_pos_weight': 1,
+            'eval_metric': 'Accuracy',
+            'random_seed': 42
+        }
+        
+        # Create and train a new model with optimized parameters
+        optimized_model = CatBoostClassifier(**model_params)
+        optimized_model.fit(X_train, y_train, eval_set=(X_test, y_test), verbose=False)
         
         # Model predictions
-        y_pred = model.predict(X_test)
+        y_pred = optimized_model.predict(X_test)
         
         # Evaluation
         accuracy = accuracy_score(y_test, y_pred)
@@ -141,7 +175,7 @@ if uploaded_file:
         if st.button('Generate Lime Explanation for a Random Sample'):
             try:
                 explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=feature_names, class_names=label_encoder.classes_, verbose=True, mode='classification')
-                exp = explainer.explain_instance(X_test[0], model.predict_proba, num_features=10)
+                exp = explainer.explain_instance(X_test[0], optimized_model.predict_proba, num_features=10)
                 st.write(exp.as_list())
                 fig = exp.as_pyplot_figure()
                 st.pyplot(fig)
