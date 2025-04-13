@@ -52,15 +52,53 @@ if uploaded_file:
                 selector = SelectKBest(score_func=f_classif, k=k)
             elif method == 'Mutual Information':
                 selector = SelectKBest(score_func=mutual_info_classif, k=k)
+            elif method == 'Information Gain':
+                from sklearn.feature_selection import mutual_info_classif
+                selector = SelectKBest(score_func=mutual_info_classif, k=k)
+            elif method == 'Chi-Square':
+                from sklearn.feature_selection import chi2
+                # Ensure data is non-negative for chi-square test
+                X_non_neg = X - X.min()
+                selector = SelectKBest(score_func=chi2, k=k)
+                X_new = selector.fit_transform(X_non_neg, y)
+                selected_features = selector.get_support(indices=True)
+                feature_names = X.columns[selected_features]
+                return X_new, selected_features, feature_names, selector
+
             X_new = selector.fit_transform(X, y)
             selected_features = selector.get_support(indices=True)
             feature_names = X.columns[selected_features]
             return X_new, selected_features, feature_names, selector
 
-        method = st.selectbox("Feature selection method", ["ANOVA", "Mutual Information"])
-        k = st.slider("Number of features", min_value=1, max_value=min(X.shape[1], 20), value=10)
+        method = st.selectbox("Feature selection method", 
+                            ["ANOVA", "Mutual Information", "Information Gain", "Chi-Square"])
+        k = 10  # Default number of features
         
-        X_selected, selected_features, feature_names, _ = select_features(X, y, method=method, k=k)
+        # Display feature selection method description
+        if method == "ANOVA":
+            st.info("ANOVA: Selects features based on the F-value between label/feature for regression tasks.")
+        elif method == "Mutual Information":
+            st.info("Mutual Information: Measures the mutual dependence between two variables, specifically the label and feature.")
+        elif method == "Information Gain":
+            st.info("Information Gain: Measures the reduction in entropy when splitting by a feature.")
+        elif method == "Chi-Square":
+            st.info("Chi-Square: Measures the dependence between features and labels using chi-square statistic.")
+        
+        X_selected, selected_features, feature_names, selector = select_features(X, y, method=method, k=k)
+        
+        # Display selected features and their scores
+        st.write("### Selected Features")
+        if method != "Chi-Square":
+            scores = pd.DataFrame({
+                'Feature': feature_names,
+                'Score': selector.scores_[selected_features]
+            }).sort_values('Score', ascending=False)
+        else:
+            scores = pd.DataFrame({
+                'Feature': feature_names,
+                'Score': selector.scores_[selected_features]
+            }).sort_values('Score', ascending=False)
+        st.dataframe(scores)
         
         # Split data
         X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.2, random_state=42)
