@@ -200,22 +200,27 @@ if uploaded_file:
                 random_idx = np.random.randint(len(X_test))
                 instance_to_explain = X_test[random_idx].to_numpy() if hasattr(X_test[random_idx], 'to_numpy') else np.array(X_test[random_idx])
                 true_label = label_encoder.inverse_transform([y_test[random_idx]])[0]
-                predicted_label = label_encoder.inverse_transform([optimized_model.predict(instance_to_explain.reshape(1, -1))[0]])[0]
+                
+                # Get prediction and probabilities
+                pred_proba = optimized_model.predict_proba(instance_to_explain.reshape(1, -1))[0]
+                pred_class_idx = int(np.argmax(pred_proba))  # Convert to Python int
+                predicted_label = label_encoder.classes_[pred_class_idx]
                 
                 # Generate the explanation
                 exp = explainer.explain_instance(
                     data_row=instance_to_explain,
                     predict_fn=optimized_model.predict_proba,
-                    num_features=min(len(feature_names), 10),  # Limit to top 10 features
-                    top_labels=3  # Show top 3 classes
+                    num_features=min(len(feature_names), 10),
+                    labels=[pred_class_idx],  # Only explain predicted class
+                    top_labels=None
                 )
                 
                 # Display prediction information
                 st.write(f"**True Label:** {true_label}")
                 st.write(f"**Predicted Label:** {predicted_label}")
+                st.write(f"**Prediction Confidence:** {pred_proba[pred_class_idx]:.2%}")
                 
                 # Get the explanation for the predicted class
-                pred_class_idx = optimized_model.predict(instance_to_explain.reshape(1, -1))[0]
                 explanation_list = exp.as_list(label=pred_class_idx)
                 
                 # Create a DataFrame for better visualization
@@ -250,10 +255,9 @@ if uploaded_file:
                 
                 # Display prediction probabilities
                 st.write("#### Prediction Probabilities")
-                probs = optimized_model.predict_proba(instance_to_explain.reshape(1, -1))[0]
                 prob_df = pd.DataFrame({
                     'Class': label_encoder.classes_,
-                    'Probability': probs
+                    'Probability': pred_proba
                 }).sort_values('Probability', ascending=False)
                 
                 # Create a bar chart for probabilities
@@ -273,6 +277,8 @@ if uploaded_file:
                 st.write(f"- X_train shape: {X_train_arr.shape}")
                 st.write(f"- Instance shape: {instance_to_explain.shape}")
                 st.write(f"- Classes: {label_encoder.classes_}")
+                st.write(f"- Predicted class index: {pred_class_idx}")
+                st.write(f"- Predicted label: {predicted_label}")
                 import traceback
                 st.write("Detailed error:")
                 st.code(traceback.format_exc())
