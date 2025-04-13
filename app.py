@@ -120,10 +120,6 @@ if uploaded_file:
         # Split data with stratification
         X_train, X_test, y_train, y_test = train_test_split(X_selected, y, test_size=0.2, random_state=42, stratify=y)
         
-        # Calculate class weights
-        classes = np.unique(y)
-        class_weights = dict(zip(classes, [1.0] * len(classes)))  # Equal weights for all classes
-        
         # Optimize model parameters
         model_params = {
             'iterations': 1000,
@@ -134,8 +130,7 @@ if uploaded_file:
             'subsample': 0.8,
             'eval_metric': 'Accuracy',
             'random_seed': 42,
-            'class_weights': [1.0] * len(classes),  # Equal weights for all classes
-            'auto_class_weights': 'Balanced'  # Let CatBoost handle class imbalance
+            'auto_class_weights': 'Balanced'  # Let CatBoost handle class imbalance automatically
         }
         
         # Create and train a new model with optimized parameters
