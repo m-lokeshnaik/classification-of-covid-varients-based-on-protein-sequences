@@ -247,7 +247,9 @@ if uploaded_file:
                 
                 # Display detailed explanation
                 st.write("#### Detailed Explanation")
-                for feature, impact in feature_importance.values:
+                for _, row in feature_importance.iterrows():
+                    feature = row['Feature_Value']
+                    impact = row['Impact']
                     if impact > 0:
                         st.write(f"- {feature}: :green[Increases probability by {abs(impact):.3f}]")
                     else:
