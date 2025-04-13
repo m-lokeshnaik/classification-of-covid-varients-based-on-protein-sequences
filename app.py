@@ -177,15 +177,93 @@ if uploaded_file:
             st.write("")
 
         # Lime explanation
-        st.write("### Lime Explanation for a Sample")
-        if st.button('Generate Lime Explanation for a Random Sample'):
+        st.write("### LIME Explanation")
+        st.write("LIME helps explain individual predictions by showing which features contributed most to the classification.")
+        
+        if st.button('Generate LIME Explanation for a Random Sample'):
             try:
-                explainer = lime.lime_tabular.LimeTabularExplainer(X_train, feature_names=feature_names, class_names=label_encoder.classes_, verbose=True, mode='classification')
-                exp = explainer.explain_instance(X_test[0], optimized_model.predict_proba, num_features=10)
-                st.write(exp.as_list())
-                fig = exp.as_pyplot_figure()
-                st.pyplot(fig)
+                # Create the LIME explainer
+                explainer = lime.lime_tabular.LimeTabularExplainer(
+                    training_data=X_train,
+                    feature_names=list(feature_names),
+                    class_names=list(label_encoder.classes_),
+                    mode='classification',
+                    training_labels=y_train,
+                    discretize_continuous=True
+                )
+                
+                # Select a random instance to explain
+                random_idx = np.random.randint(len(X_test))
+                instance_to_explain = X_test[random_idx]
+                true_label = label_encoder.inverse_transform([y_test[random_idx]])[0]
+                predicted_label = label_encoder.inverse_transform([optimized_model.predict(instance_to_explain.reshape(1, -1))[0]])[0]
+                
+                # Generate the explanation
+                exp = explainer.explain_instance(
+                    instance_to_explain, 
+                    optimized_model.predict_proba,
+                    num_features=len(feature_names),
+                    top_labels=1
+                )
+                
+                # Display prediction information
+                st.write(f"**True Label:** {true_label}")
+                st.write(f"**Predicted Label:** {predicted_label}")
+                
+                # Get feature importance
+                explanation_list = exp.as_list()
+                
+                # Create a DataFrame for better visualization
+                feature_importance = pd.DataFrame(
+                    explanation_list,
+                    columns=['Feature_Value', 'Impact']
+                )
+                feature_importance['Absolute_Impact'] = abs(feature_importance['Impact'])
+                feature_importance = feature_importance.sort_values('Absolute_Impact', ascending=False)
+                
+                # Display feature importance
+                st.write("#### Feature Importance")
+                st.write("Positive values indicate support for the prediction, negative values indicate opposition.")
+                
+                # Create a bar chart
+                plt.figure(figsize=(10, 6))
+                colors = ['green' if x > 0 else 'red' for x in feature_importance['Impact']]
+                plt.barh(range(len(feature_importance)), feature_importance['Impact'], color=colors)
+                plt.yticks(range(len(feature_importance)), feature_importance['Feature_Value'])
+                plt.xlabel('Impact on Prediction')
+                plt.title('Feature Importance for Prediction')
+                st.pyplot(plt.gcf())
+                
+                # Display detailed explanation
+                st.write("#### Detailed Explanation")
+                for feature, impact in feature_importance.values:
+                    if impact > 0:
+                        st.write(f"- {feature}: :green[Increases probability by {abs(impact):.3f}]")
+                    else:
+                        st.write(f"- {feature}: :red[Decreases probability by {abs(impact):.3f}]")
+                
+                # Display prediction probabilities
+                st.write("#### Prediction Probabilities")
+                probs = optimized_model.predict_proba(instance_to_explain.reshape(1, -1))[0]
+                prob_df = pd.DataFrame({
+                    'Class': label_encoder.classes_,
+                    'Probability': probs
+                }).sort_values('Probability', ascending=False)
+                
+                # Create a bar chart for probabilities
+                plt.figure(figsize=(10, 6))
+                plt.bar(prob_df['Class'], prob_df['Probability'])
+                plt.xticks(rotation=45)
+                plt.ylabel('Probability')
+                plt.title('Prediction Probabilities for Each Class')
+                st.pyplot(plt.gcf())
+                
             except Exception as e:
-                st.error(f"An error occurred while generating LIME explanation: {e}")
+                st.error(f"An error occurred while generating LIME explanation: {str(e)}")
+                st.write("Error details for debugging:")
+                st.write(f"- Feature names: {feature_names}")
+                st.write(f"- Number of features: {len(feature_names)}")
+                st.write(f"- Shape of X_train: {X_train.shape}")
+                st.write(f"- Shape of instance to explain: {instance_to_explain.shape}")
     except Exception as e:
         st.error(f"An error occurred: {e}")
